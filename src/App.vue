@@ -136,37 +136,46 @@ async function checkUrlForReset() {
     isResetting.value = true;
 
     try {
-      // 1. Établir une session utilisateur minimale (Connexion Anonyme)
-      //    Ceci nous donne un request.auth != null pour satisfaire la règle Firestore.
+      // 1. Connexion Anonyme (pour satisfaire la règle Firestore: request.auth != null)
       await signInAnonymously(auth);
       console.log("Session anonyme établie pour réinitialisation.");
 
-      // 2. Supprimer le document (le tirage)
+      // 2. Suppression du document (le tirage)
       const drawRef = doc(db, "results", "draw_results");
       await deleteDoc(drawRef);
 
-      alert("🎉 Tirage réinitialisé avec succès !");
+      // Si la suppression réussit, on nettoie tout de suite l'état local
+      resultsMaj.value = [];
+      resultsMin.value = [];
+      drawDone.value = false;
+
+      alert("Tirage réinitialisé");
 
     } catch (error) {
+      // Afficher l'erreur exacte du SDK Firebase pour comprendre la cause de l'échec
       console.error("Échec de la réinitialisation:", error);
-      alert("⚠️ Échec de la réinitialisation. Le tirage n'a peut-être pas encore été effectué.");
+      alert(`⚠️ Échec de la réinitialisation. Cause possible : ${error.code}`);
+
     } finally {
-      // 3. Nettoyer l'URL et mettre à jour l'état
+      // 3. Nettoyer l'URL
       window.history.replaceState({}, document.title, window.location.pathname);
       isResetting.value = false;
-      // Recharger l'état de la page pour afficher le bouton "Lancer le tirage"
-      await loadDrawResults();
+      // NOTE: loadDrawResults sera appelé par onMounted après cette fonction.
     }
   }
 }
 
-// **NOUVEAU : Chargement des résultats au montage du composant**
-onMounted(() => {
-  checkUrlForReset();
-  // loadDrawResults est maintenant appelé à la fin de checkUrlForReset
-  // ou juste ici si checkUrlForReset ne le fait pas (assurez-vous d'avoir une seule exécution)
-  // Simplification :
-  loadDrawResults();
+onMounted(async () => { // Rendre onMounted asynchrone pour attendre
+  const urlParams = new URLSearchParams(window.location.search);
+  const resetCode = urlParams.get('reset');
+
+  // Exécuter la réinitialisation SEULEMENT si le code secret est présent
+  if (resetCode && resetCode === LOCAL_RESET_CODE) {
+    await checkUrlForReset();
+  }
+
+  // Charger les résultats dans tous les cas (ce chargement reflètera le nouveau statut de Firestore)
+  await loadDrawResults();
 });
 </script>
 
@@ -217,7 +226,7 @@ body, html {
   min-height: 100vh;
   margin: 0;
   font-family: Arial, sans-serif;
-  background-image: url("/src/assets/winter.jpg");
+  background-image: url("/winter.jpg");
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
