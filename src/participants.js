@@ -13,8 +13,8 @@ export const participantsMaj = [
     { name: "James", exclusions: ["Clara", "Laurent", "Florence"]},
     { name: "Arnaud", exclusions: ["Andréanne", "Olivier", "Hélène"]},
     { name: "Andréanne", exclusions: ["Arnaud", "Olivier", "Hélène"]},
-    { name: "Colyne", exclusions: ["Aurélien", "Stephan", "Émilie", "Hélène", "Florence"]},
-    { name: "Aurélien", exclusions: ["Colyne", "Stephan", "Émilie", "Hélène", "Florence"]}
+    { name: "Colyne", exclusions: ["Aurélien", "Stephan", "Émilie", "Hélène", "Florence", "Laurent"]},
+    { name: "Aurélien", exclusions: ["Colyne", "Stephan", "Émilie", "Hélène", "Florence", "Laurent"]}
 ];
 
 export const participantsMin  = [
