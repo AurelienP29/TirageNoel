@@ -1,8 +1,9 @@
 <script setup>
 import {participantsMaj, participantsMin} from "@/participants.js";
 import {ref, onMounted} from "vue";
-import {db} from "@/firebase"
-import {doc, getDoc, setDoc} from "firebase/firestore";
+import { db, auth } from "@/firebase";
+import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
+import { signInAnonymously } from "firebase/auth"; // <-- Import pour la connexion anonyme
 
 const resultsMaj = ref([]);
 const resultsMin = ref([]);
@@ -10,6 +11,9 @@ const drawDone = ref(false);
 const isLoading = ref(true);
 
 const drawRef = doc(db, "results", "draw_results");
+
+const LOCAL_RESET_CODE = '2025';
+const isResetting = ref(false);
 
 async function loadDrawResults() {
   try {
@@ -123,11 +127,49 @@ async function runDraw() {
   }
 }
 
+async function checkUrlForReset() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const resetCode = urlParams.get('reset');
+
+  // Si le paramètre 'reset' est présent et que le code correspond au secret
+  if (resetCode && resetCode === LOCAL_RESET_CODE) {
+    isResetting.value = true;
+
+    try {
+      // 1. Établir une session utilisateur minimale (Connexion Anonyme)
+      //    Ceci nous donne un request.auth != null pour satisfaire la règle Firestore.
+      await signInAnonymously(auth);
+      console.log("Session anonyme établie pour réinitialisation.");
+
+      // 2. Supprimer le document (le tirage)
+      const drawRef = doc(db, "results", "draw_results");
+      await deleteDoc(drawRef);
+
+      alert("🎉 Tirage réinitialisé avec succès !");
+
+    } catch (error) {
+      console.error("Échec de la réinitialisation:", error);
+      alert("⚠️ Échec de la réinitialisation. Le tirage n'a peut-être pas encore été effectué.");
+    } finally {
+      // 3. Nettoyer l'URL et mettre à jour l'état
+      window.history.replaceState({}, document.title, window.location.pathname);
+      isResetting.value = false;
+      // Recharger l'état de la page pour afficher le bouton "Lancer le tirage"
+      await loadDrawResults();
+    }
+  }
+}
+
 // **NOUVEAU : Chargement des résultats au montage du composant**
 onMounted(() => {
+  checkUrlForReset();
+  // loadDrawResults est maintenant appelé à la fin de checkUrlForReset
+  // ou juste ici si checkUrlForReset ne le fait pas (assurez-vous d'avoir une seule exécution)
+  // Simplification :
   loadDrawResults();
 });
 </script>
+
 <template>
   <div class="page">
     <div class="card">
@@ -135,6 +177,10 @@ onMounted(() => {
 
       <div v-if="isLoading" class="center">
         <p>Vérification du tirage en cours...</p>
+      </div>
+
+      <div v-else-if="isResetting" class="center">
+        <p>Réinitialisation en cours...</p>
       </div>
 
       <div v-else-if="!drawDone" class="center">
