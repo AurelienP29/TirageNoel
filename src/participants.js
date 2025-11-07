@@ -1,22 +1,27 @@
-export const participants = [
+export const participantsMaj = [
     { name: "Palmyre", exclusions: ["Nicole"]},
     { name: "Nicole", exclusions: ["Palmyre"]},
-    { name: "Laurent", exclusions: ["Florence", "Clara", "James", "Eva"]},
-    { name: "Florence", exclusions: ["Laurent", "Clara", "James", "Eva"]},
-    { name: "Olivier", exclusions: ["Hélène", "Arnaud", "Andréanne", "Clémence"]},
-    { name: "Hélène", exclusions: ["Olivier", "Arnaud", "Andréanne", "Clémence"]},
+    { name: "Laurent", exclusions: ["Florence", "Clara", "James"]},
+    { name: "Florence", exclusions: ["Laurent", "Clara", "James"]},
+    { name: "Olivier", exclusions: ["Hélène", "Arnaud", "Andréanne"]},
+    { name: "Hélène", exclusions: ["Olivier", "Arnaud", "Andréanne"]},
     { name: "Stephan", exclusions: ["Émilie", "Aurélien", "Colyne", "Hélène", "Florence"]},
     { name: "Émilie", exclusions: ["Stephan", "Aurélien", "Colyne", "Hélène", "Florence"]},
-    { name: "Audrey", exclusions: ["Sylvain", "Mylan", "Mathieu"]},
-    { name: "Sylvain", exclusions: ["Audrey", "Mylan", "Mathieu"]},
-    { name: "Clara", exclusions: ["James", "Eva", "Laurent", "Florence"]},
-    { name: "James", exclusions: ["Clara", "Eva", "Laurent", "Florence"]},
-    { name: "Eva", exclusions: ["Clara", "James", "Laurent", "Florence"]},
-    { name: "Arnaud", exclusions: ["Andréanne", "Clémence", "Olivier", "Hélène"]},
-    { name: "Andréanne", exclusions: ["Arnaud", "Clémence", "Olivier", "Hélène"]},
-    { name: "Clémence", exclusions: ["Arnaud", "Andréanne", "Olivier", "Hélène"]},
+    { name: "Audrey", exclusions: ["Sylvain"]},
+    { name: "Sylvain", exclusions: ["Audrey"]},
+    { name: "Clara", exclusions: ["James", "Laurent", "Florence"]},
+    { name: "James", exclusions: ["Clara", "Laurent", "Florence"]},
+    { name: "Arnaud", exclusions: ["Andréanne", "Olivier", "Hélène"]},
+    { name: "Andréanne", exclusions: ["Arnaud", "Olivier", "Hélène"]},
     { name: "Colyne", exclusions: ["Aurélien", "Stephan", "Émilie", "Hélène", "Florence"]},
-    { name: "Aurélien", exclusions: ["Colyne", "Stephan", "Émilie", "Hélène", "Florence"]},
-    { name: "Mylan", exclusions: ["Audrey", "Sylvain", "Mathieu"]},
-    { name: "Mathieu", exclusions: ["Sylvain", "Audrey", "Mylan"]}
+    { name: "Aurélien", exclusions: ["Colyne", "Stephan", "Émilie", "Hélène", "Florence"]}
+];
+
+export const participantsMin  = [
+    { name: "Eva", exclusions: [""]},
+    { name: "Clémence", exclusions: [""]},
+    { name: "Mylan", exclusions: ["Maïko", "Maddy"]},
+    { name: "Maïko", exclusions: ["Mylan", "Maddy"]},
+    { name: "Maddy", exclusions: ["Mylan", "Maïko"]},
+    { name: "Mathieu", exclusions: [""]}
 ];

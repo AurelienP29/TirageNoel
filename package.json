@@ -13,6 +13,7 @@
     "deploy": "gh-pages -d dist --repo=https://AurelienP29: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@github.com/AurelienP29/TirageNoel.git"
   },
   "dependencies": {
+    "firebase": "^12.5.0",
     "vue": "^3.5.22"
   },
   "devDependencies": {
