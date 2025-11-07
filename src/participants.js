@@ -18,10 +18,9 @@ export const participantsMaj = [
 ];
 
 export const participantsMin  = [
-    { name: "Eva", exclusions: [""]},
-    { name: "Clémence", exclusions: [""]},
-    { name: "Mylan", exclusions: ["Maïko", "Maddy"]},
-    { name: "Maïko", exclusions: ["Mylan", "Maddy"]},
-    { name: "Maddy", exclusions: ["Mylan", "Maïko"]},
-    { name: "Mathieu", exclusions: [""]}
+    { name: "Eva", exclusions: ["Clémence"]},
+    { name: "Clémence", exclusions: ["Eva"]},
+    { name: "Mylan", exclusions: [""]},
+    { name: "Maïko", exclusions: [""]},
+    { name: "Maddy", exclusions: [""]}
 ];
