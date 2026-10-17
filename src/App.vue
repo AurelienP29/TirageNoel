@@ -1,199 +1,146 @@
 <script setup>
-import {participantsMaj, participantsMin} from "@/participants.js";
-import {ref, onMounted} from "vue";
-import { db, auth } from "@/firebase";
-import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
-import { signInAnonymously } from "firebase/auth"; // <-- Import pour la connexion anonyme
+import { ref, onMounted, onUnmounted } from "vue";
+import AdminView from "@/AdminView.vue";
+import {
+  readMasterDoc,
+  updateMasterDoc,
+  isDrawActive,
+  fetchParticipants,
+  fetchPreviousDraw,
+  solveListDraw
+} from "@/drawService.js";
 
 const resultsMaj = ref([]);
 const resultsMin = ref([]);
 const drawDone = ref(false);
 const isLoading = ref(true);
+const drawError = ref("");
 
-const drawRef = doc(db, "results", "draw_results");
+const isAdminPage = ref(false);
 
-const LOCAL_RESET_CODE = '2025';
-const isResetting = ref(false);
+function detectAdminRoute() {
+  const path = window.location.pathname.replace(/\/+$/, "");
+  const hash = window.location.hash;
+  const searchParams = new URLSearchParams(window.location.search);
+
+  isAdminPage.value =
+    path.endsWith("/admin") ||
+    hash === "#/admin" ||
+    hash === "#admin" ||
+    searchParams.has("admin");
+}
+
+function exitAdmin() {
+  const baseUrl = import.meta.env.BASE_URL || "/";
+  window.history.pushState({}, document.title, baseUrl);
+  isAdminPage.value = false;
+  loadDrawResults();
+}
 
 async function loadDrawResults() {
+  isLoading.value = true;
+  drawError.value = "";
   try {
-    const docSnap = await getDoc(drawRef);
-    if (docSnap.exists()) {
-      // Les résultats existent, on les affiche
-      const data = docSnap.data();
-      resultsMaj.value = data.maj;
-      resultsMin.value = data.min;
+    const data = await readMasterDoc();
+    if (isDrawActive(data)) {
+      resultsMaj.value = data.maj || [];
+      resultsMin.value = data.min || [];
       drawDone.value = true;
-      console.log("Résultats chargés depuis Firestore.");
     } else {
-      // Le document n'existe pas, le tirage n'a pas été fait
+      resultsMaj.value = [];
+      resultsMin.value = [];
       drawDone.value = false;
-      console.log("Pas de résultats trouvés. Le tirage n'a pas été fait.");
     }
   } catch (error) {
     console.error("Erreur lors du chargement des résultats:", error);
-    // On peut quand même permettre le tirage si le chargement échoue
     drawDone.value = false;
   } finally {
-    isLoading.value = false; // Fin du chargement
+    isLoading.value = false;
   }
 }
 
 async function runDraw() {
   if (drawDone.value) {
-    console.log("Le tirage est déjà fait et bloqué.");
     return;
   }
+  drawError.value = "";
 
-  // Le reste de votre logique de tirage (que je garde inchangée)
-  const namesMaj = participantsMaj.map(p => p.name);
-  const namesMin = participantsMin.map(p => p.name);
-  let receiversMaj = [...namesMaj];
-  let receiversMin = [...namesMin];
-
-  function shuffle(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
-    }
-  }
-
-  let successMaj = false;
-  let attemptsMaj = 0;
-  while (!successMaj && attemptsMaj < 1000) {
-    attemptsMaj++;
-    shuffle(receiversMaj);
-    successMaj = namesMaj.every((name, index) => {
-      const receiver = receiversMaj[index];
-      if (name === receiver) return false;
-      const p = participantsMaj.find(p => p.name === name);
-      if (p.exclusions.includes(receiver)) return false;
-      return true;
-    });
-  }
-
-  if (!successMaj) {
-    console.log("Tirage Majeur impossible.");
-    resultsMaj.value = ["Réessayer"];
-    return;
-  }
-
-  let successMin = false;
-  let attemptsMin = 0;
-  while (!successMin && attemptsMin < 1000) {
-    attemptsMin++;
-    shuffle(receiversMin);
-    successMin = namesMin.every((name, index) => {
-      const receiver = receiversMin[index];
-      if (name === receiver) return false;
-      const p = participantsMin.find(p => p.name === name);
-      if (p.exclusions.includes(receiver)) return false;
-      return true;
-    });
-  }
-
-  if (!successMin) {
-    console.log("Tirage Mineur impossible.");
-    resultsMin.value = ["Réessayer"];
-    return;
-  }
-  // Fin de la logique de tirage
-
-  // Formatage des résultats pour l'affichage
-  const finalResultsMaj = namesMaj.map((name, index) =>
-      `${name} offre à ${receiversMaj[index]}`
-  );
-  const finalResultsMin = namesMin.map((name, index) =>
-      `${name} offre à ${receiversMin[index]}`
-  );
-
-  // **NOUVEAU : Enregistrement dans Firestore**
   try {
-    const drawData = {
+    const masterData = await readMasterDoc();
+    const [participantsData, prevDrawData] = await Promise.all([
+      fetchParticipants(masterData),
+      fetchPreviousDraw(masterData)
+    ]);
+
+    const listMaj = participantsData.maj;
+    const listMin = participantsData.min;
+    const prevPairs = prevDrawData?.pairs || {};
+
+    const finalResultsMaj = solveListDraw(listMaj, prevPairs);
+    if (!finalResultsMaj) {
+      drawError.value =
+        "Tirage impossible pour la Liste 1 (trop d'exclusions). Vérifiez la configuration dans la page admin.";
+      return;
+    }
+
+    const finalResultsMin = solveListDraw(listMin, prevPairs);
+    if (!finalResultsMin) {
+      drawError.value =
+        "Tirage impossible pour la Liste 2 (trop d'exclusions). Vérifiez la configuration dans la page admin.";
+      return;
+    }
+
+    await updateMasterDoc(state => ({
+      ...state,
       maj: finalResultsMaj,
       min: finalResultsMin,
-      timestamp: new Date().toISOString() // Ajout d'un horodatage
-    };
-    await setDoc(drawRef, drawData);
+      drawDone: true,
+      timestamp: new Date().toISOString()
+    }));
 
-    // Mise à jour de l'état local après l'enregistrement
     resultsMaj.value = finalResultsMaj;
     resultsMin.value = finalResultsMin;
     drawDone.value = true;
-    console.log("Tirage enregistré et bloqué sur Firestore.");
   } catch (error) {
     console.error("Erreur lors de l'enregistrement du tirage:", error);
-    // Gérer l'erreur si l'enregistrement échoue
+    drawError.value = "Une erreur est survenue lors de l'enregistrement du tirage.";
   }
 }
 
-async function checkUrlForReset() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const resetCode = urlParams.get('reset');
+onMounted(async () => {
+  detectAdminRoute();
+  window.addEventListener("popstate", detectAdminRoute);
+  window.addEventListener("hashchange", detectAdminRoute);
 
-  // Si le paramètre 'reset' est présent et que le code correspond au secret
-  if (resetCode && resetCode === LOCAL_RESET_CODE) {
-    isResetting.value = true;
-
-    try {
-      // 1. Connexion Anonyme (pour satisfaire la règle Firestore: request.auth != null)
-      await signInAnonymously(auth);
-      console.log("Session anonyme établie pour réinitialisation.");
-
-      // 2. Suppression du document (le tirage)
-      const drawRef = doc(db, "results", "draw_results");
-      await deleteDoc(drawRef);
-
-      // Si la suppression réussit, on nettoie tout de suite l'état local
-      resultsMaj.value = [];
-      resultsMin.value = [];
-      drawDone.value = false;
-
-      alert("Tirage réinitialisé");
-
-    } catch (error) {
-      // Afficher l'erreur exacte du SDK Firebase pour comprendre la cause de l'échec
-      console.error("Échec de la réinitialisation:", error);
-      alert(`⚠️ Échec de la réinitialisation. Cause possible : ${error.code}`);
-
-    } finally {
-      // 3. Nettoyer l'URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      isResetting.value = false;
-      // NOTE: loadDrawResults sera appelé par onMounted après cette fonction.
-    }
+  if (!isAdminPage.value) {
+    await loadDrawResults();
+  } else {
+    isLoading.value = false;
   }
-}
+});
 
-onMounted(async () => { // Rendre onMounted asynchrone pour attendre
-  const urlParams = new URLSearchParams(window.location.search);
-  const resetCode = urlParams.get('reset');
-
-  // Exécuter la réinitialisation SEULEMENT si le code secret est présent
-  if (resetCode && resetCode === LOCAL_RESET_CODE) {
-    await checkUrlForReset();
-  }
-
-  // Charger les résultats dans tous les cas (ce chargement reflètera le nouveau statut de Firestore)
-  await loadDrawResults();
+onUnmounted(() => {
+  window.removeEventListener("popstate", detectAdminRoute);
+  window.removeEventListener("hashchange", detectAdminRoute);
 });
 </script>
 
 <template>
   <div class="page">
-    <div class="card">
+    <!-- SOUS-PAGE ADMIN (accessible uniquement via le lien caché) -->
+    <AdminView v-if="isAdminPage" @exit-admin="exitAdmin" />
+
+    <!-- PAGE PUBLIQUE DU TIRAGE -->
+    <div v-else class="card">
       <h1>Tirage au sort Noël</h1>
 
       <div v-if="isLoading" class="center">
         <p>Vérification du tirage en cours...</p>
       </div>
 
-      <div v-else-if="isResetting" class="center">
-        <p>Réinitialisation en cours...</p>
-      </div>
-
-      <div v-else-if="!drawDone" class="center">
+      <div v-else-if="!drawDone" class="center draw-action-col">
         <button @click="runDraw">Lancer le tirage</button>
+        <p v-if="drawError" class="error-text">{{ drawError }}</p>
       </div>
 
       <div v-else class="results-container">
@@ -286,6 +233,17 @@ button:hover {
   justify-content: center;
 }
 
+.draw-action-col {
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.error-text {
+  color: #d9534f;
+  font-weight: bold;
+  margin: 0;
+}
 
 ul {
   list-style: none;
@@ -388,5 +346,4 @@ h2 {
     font-size: 20px;
   }
 }
-
 </style>
